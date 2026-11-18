@@ -1,9 +1,7 @@
-TSE MAAŞ HESAPLAMA - MOBİL WEB UYGULAMASI
+TSE Maaş Hesaplama PWA v2
 
-1. Klasördeki dosyaları HTTPS destekli statik bir web barındırma hizmetine (örneğin GitHub Pages veya Netlify) birlikte yükleyin.
-2. Paylaşılan HTTPS bağlantısını Android Chrome veya iPhone Safari üzerinden açın.
-3. iPhone Safari: Paylaş > Ana Ekrana Ekle. Android Chrome: Menü > Ana ekrana ekle / Uygulamayı yükle.
-4. Hesaplamalar tarayıcıda yapılır; kayıtlar sadece kullanıcının kendi cihazında saklanır.
-5. Vergi oranı ve istisnalar her yıl güncellenmelidir. Uygulama resmî TSE uygulaması değildir.
+GitHub deposunun ana dizinine index.html, app.js, style.css, sw.js, manifest.webmanifest, icon.svg dosyalarını ayrı ayrı yükleyin. ZIP dosyasını tek başına yüklemeyin.
 
-NOT: index.html dosyasını telefonda yerel dosya olarak açmak, PWA kurulumunu ve çevrimdışı önbelleği etkinleştirmez. HTTPS ile yayımlamak gerekir.
+Başlangıç: aylık temel brüt 79.363,20 TL; çalışma/mesai alanları 0; güncel ay ve yıl seçili; hesapla butonuna basılmadan sonuç görünmez.
+
+Not: Vergi oranları ve sabit ödemeler 2026 örneğine göre tanımlıdır, her yıl güncellenmelidir.

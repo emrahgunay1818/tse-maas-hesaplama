@@ -2,11 +2,13 @@
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','service','otherGross','otherDeduction'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
-$('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===10?'selected':''}>${m}</option>`).join('');
+$('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
+$('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).value]));}
 function restore(data){for(const id of ids)if(data[id]!==undefined)$(id).value=data[id];calculate();}
 function calculate(){
+ $('result').hidden=false; $('save').disabled=false;
  const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
  if(days<=0||hrs<=0||gross<0){$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
  const day=gross/days;
@@ -32,6 +34,6 @@ function showSaved(){const data=storage();const keys=Object.keys(data).sort().re
 $('calculate').onclick=calculate;
 $('save').onclick=()=>{const net=calculate();if(net===undefined)return;const all=storage(),key=months[num('month')]+' '+num('year');all[key]={net,values:snapshot()};try{localStorage.setItem('tse-maas-records',JSON.stringify(all));showSaved();alert(key+' kaydedildi.')}catch{alert('Bu tarayıcıda kayıt yapılamadı.')}};
 $('print').onclick=()=>window.print();
-for(const id of ids)$(id).addEventListener('change',calculate);
-calculate();showSaved();
+for(const id of ids)$(id).addEventListener('change',()=>{ $('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=months[num('month')]+' '+num('year'); });
+$('period').textContent=months[num('month')]+' '+num('year');showSaved();
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
