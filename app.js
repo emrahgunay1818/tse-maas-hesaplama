@@ -1,12 +1,12 @@
 'use strict';
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','service','otherGross','otherDeduction'];
+const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).value]));}
-function restore(data){for(const id of ids)if(data[id]!==undefined)$(id).value=data[id];calculate();}
+function restore(data){if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined)$(id).value=data[id];calculate();}
 function calculate(){
  $('result').hidden=false; $('save').disabled=false;
  const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
@@ -17,7 +17,8 @@ function calculate(){
  const night=round(num('night')*day/hrs*num('nightRate')/100);
  const premium=round(day*num('premiumDays')*num('premiumRate')/100);
  const mesai=round(overtime+holiday);
- const employeeGross=round(gross+mesai+night+premium+num('clothing')+num('social')+num('service')+num('otherGross'));
+ const service=round(num('serviceYears')*num('serviceUnit'));
+ const employeeGross=round(gross+mesai+night+premium+num('clothing')+num('social')+service+num('otherGross'));
  const insurance=round(employeeGross*.09),gss=round(employeeGross*.05),unemployment=round(employeeGross*.01),union=round(day*num('unionFactor'));
  const taxBase=round(employeeGross-insurance-gss-unemployment-union-num('privateInsurance')-num('disability'));
  const incomeTax=Math.max(0,round(taxBase*num('taxRate')/100-num('taxCredit')));
@@ -25,7 +26,7 @@ function calculate(){
  const deductions=round(insurance+gss+unemployment+union+incomeTax+stamp+num('otherDeduction'));
  const net=round(employeeGross-deductions);
  $('period').textContent=months[num('month')]+' '+num('year');$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
- const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı',num('service')],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['TAHMİNİ NET MAAŞ',net]];
+ const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['TAHMİNİ NET MAAŞ',net]];
  $('rows').innerHTML=entries.map(([name,value],i)=>`<div class="line ${i===entries.length-1?'total':''}"><span>${name}</span><b>${fmt(value)}</b></div>`).join('');
  return net;
 }
