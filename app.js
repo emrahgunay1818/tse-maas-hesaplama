@@ -7,10 +7,15 @@ $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
 function restore(data){data={transportEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
-function calculate(){
- $('result').hidden=false; $('save').disabled=false;
+function showTransportPreview(net) {
+ const visible = $('transportEligible').value === '1' && Number.isFinite(net);
+ $('transport-preview').hidden = !visible;
+ $('transport-net-preview').textContent = visible ? fmt(net) : '';
+}
+
+function calculate(render = true){
  const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
- if(days<=0||hrs<=0||gross<0){$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
+ if(days<=0||hrs<=0||gross<0){if(!render)return;showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
  const day=gross/days;
  const overtime=round(num('overtime')*day*num('overtimeFactor'));
  const holiday=round(num('holiday')*day*num('holidayFactor'));
@@ -30,6 +35,10 @@ function calculate(){
    ? round(Math.max(0, num('actualDays')) * transportDayRate)
    : 0;
  const net = round(employeeGross - deductions + transportNet);
+ if (!render) return net;
+ showTransportPreview(net);
+ $('result').hidden = false;
+ $('save').disabled = false;
  $('period').textContent=periodLabel();$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
  const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['SGK prime esas tahmini kazanç',sgkBase],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['Ulaşım yardımı (net)',transportNet],['TAHMİNİ NET MAAŞ',net]];
  $('rows').innerHTML=entries.map(([name,value],i)=>`<div class="line ${i===entries.length-1?'total':''}"><span>${name}</span><b>${fmt(value)}</b></div>`).join('');
@@ -38,7 +47,7 @@ function calculate(){
 function storage(){try{return JSON.parse(localStorage.getItem('tse-maas-records')||'{}')}catch{return {}}}
 function showSaved(){const data=storage();const keys=Object.keys(data).sort().reverse();$('saved').innerHTML=keys.length?'':'<p class="muted">Henüz kayıt bulunmuyor.</p>';for(const key of keys){const line=document.createElement('div');line.className='saved-item';const name=document.createElement('span');name.textContent=key+' · '+fmt(data[key].net);const load=document.createElement('button');load.type='button';load.textContent='Aç';load.onclick=()=>{try{if(!data[key]||!data[key].values)throw new Error('Kayıt bilgisi eksik');restore(data[key].values);$('status').textContent=key+' kaydı açıldı · Tahmini hesaplama';$('result').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){alert('Kayıt açılamadı: '+e.message);}};const del=document.createElement('button');del.textContent='Sil';del.className='del';del.onclick=()=>{if(confirm(key+' kaydı silinsin mi?')){const all=storage();delete all[key];localStorage.setItem('tse-maas-records',JSON.stringify(all));showSaved()}};line.append(name,load,del);$('saved').append(line)}}
 function periodLabel(){return months[num('month')]+' '+num('year');}
-$('calculate').onclick=calculate;
+$('calculate').onclick=()=>calculate();
 $('save').onclick=()=>{const net=calculate();if(net===undefined)return;const all=storage(),key=periodLabel();all[key]={net,values:snapshot()};try{localStorage.setItem('tse-maas-records',JSON.stringify(all));showSaved();alert(key+' kaydedildi.')}catch{alert('Bu tarayıcıda kayıt yapılamadı.')}};
 $('print').onclick=()=>{
   if($('result').hidden){alert('Önce maaşı hesaplayın.');return;}
@@ -50,6 +59,12 @@ $('print').onclick=()=>{
 };
 for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
 $('period').textContent=periodLabel();showSaved();
+const refreshTransportPreview = () => showTransportPreview(calculate(false));
+for (const id of ids) {
+ $(id).addEventListener($(id).tagName === 'SELECT' ? 'change' : 'input', refreshTransportPreview);
+}
+refreshTransportPreview();
+
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 
 for (const field of document.querySelectorAll('input[type="number"]')) {
