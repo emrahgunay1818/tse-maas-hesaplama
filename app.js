@@ -61,3 +61,37 @@ for (const field of document.querySelectorAll('input[type="number"]')) {
     clearedZero = false;
   });
 }
+const installPanel = document.getElementById('install-panel');
+const installButton = document.getElementById('install-button');
+const installHint = document.getElementById('install-hint');
+const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+let installPrompt;
+installPanel.hidden = standalone || !(appleMobile || /Android/i.test(navigator.userAgent));
+window.addEventListener('beforeinstallprompt', event => {
+  if (standalone || appleMobile) return;
+  event.preventDefault();
+  installPrompt = event;
+  installPanel.hidden = false;
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  installPanel.hidden = true;
+});
+installButton.addEventListener('click', async () => {
+  if (installPrompt) {
+    const prompt = installPrompt;
+    installPrompt = null;
+    try {
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      if (choice.outcome === 'accepted') installPanel.hidden = true;
+      return;
+    } catch { /* Show manual installation steps below. */ }
+  }
+  installHint.textContent = appleMobile
+    ? 'Safari’de Paylaş menüsünü aç, “Ana Ekrana Ekle”yi seç ve “Ekle”ye dokun.'
+    : 'Chrome menüsünü (⋮) aç. “Ana ekrana ekle” veya “Uygulamayı yükle”yi seçip onayla.';
+  installHint.hidden = false;
+});
