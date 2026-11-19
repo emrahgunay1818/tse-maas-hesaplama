@@ -47,3 +47,17 @@ $('print').onclick=()=>{
 for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
 $('period').textContent=periodLabel();showSaved();
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+
+for (const field of document.querySelectorAll('input[type="number"]')) {
+  let clearedZero = false;
+  field.addEventListener('focus', () => {
+    clearedZero = field.valueAsNumber === 0;
+    if (clearedZero) field.value = '';
+  });
+  field.addEventListener('blur', () => {
+    if (clearedZero && field.value === '' && !field.validity.badInput) {
+      field.value = '0';
+    }
+    clearedZero = false;
+  });
+}
