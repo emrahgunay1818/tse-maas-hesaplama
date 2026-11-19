@@ -7,15 +7,23 @@ $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
 function restore(data){data={transportEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
-function showTransportPreview(net) {
- const visible = $('transportEligible').value === '1' && Number.isFinite(net);
- $('transport-preview').hidden = !visible;
- $('transport-net-preview').textContent = visible ? fmt(net) : '';
+// Keep option 1 for saved records that used the double-ride rate.
+const transportDailyRates = new Map([['1', 160], ['2', 80]]);
+
+function calculateTransportNet() {
+ const dailyRate = transportDailyRates.get($('transportEligible').value) ?? 0;
+ return round(Math.max(0, num('actualDays')) * dailyRate);
 }
 
-function calculate(render = true){
+function showTransportPreview() {
+ const visible = transportDailyRates.has($('transportEligible').value);
+ $('transport-preview').hidden = !visible;
+ $('transport-net-preview').textContent = visible ? fmt(calculateTransportNet()) : '';
+}
+
+function calculate(){
  const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
- if(days<=0||hrs<=0||gross<0){if(!render)return;showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
+ if(days<=0||hrs<=0||gross<0){showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
  const day=gross/days;
  const overtime=round(num('overtime')*day*num('overtimeFactor'));
  const holiday=round(num('holiday')*day*num('holidayFactor'));
@@ -30,13 +38,9 @@ function calculate(render = true){
  const incomeTax=Math.max(0,round(taxBase*num('taxRate')/100-num('taxCredit')));
  const stamp=round(Math.max(0,employeeGross-num('minimum'))*.00759);
  const deductions=round(insurance+gss+unemployment+union+incomeTax+stamp+num('otherDeduction'));
- const transportDayRate = 40;
- const transportNet = $('transportEligible').value === '1'
-   ? round(Math.max(0, num('actualDays')) * transportDayRate)
-   : 0;
+ const transportNet = calculateTransportNet();
  const net = round(employeeGross - deductions + transportNet);
- if (!render) return net;
- showTransportPreview(net);
+ showTransportPreview();
  $('result').hidden = false;
  $('save').disabled = false;
  $('period').textContent=periodLabel();$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
@@ -59,11 +63,9 @@ $('print').onclick=()=>{
 };
 for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
 $('period').textContent=periodLabel();showSaved();
-const refreshTransportPreview = () => showTransportPreview(calculate(false));
-for (const id of ids) {
- $(id).addEventListener($(id).tagName === 'SELECT' ? 'change' : 'input', refreshTransportPreview);
-}
-refreshTransportPreview();
+$('actualDays').addEventListener('input', showTransportPreview);
+$('transportEligible').addEventListener('change', showTransportPreview);
+showTransportPreview();
 
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 
