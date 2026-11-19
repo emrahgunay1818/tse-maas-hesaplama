@@ -61,23 +61,21 @@ for (const field of document.querySelectorAll('input[type="number"]')) {
     clearedZero = false;
   });
 }
-const installPanel = document.getElementById('install-panel');
 const installButton = document.getElementById('install-button');
 const installHint = document.getElementById('install-hint');
 const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 let installPrompt;
-installPanel.hidden = standalone || !(appleMobile || /Android/i.test(navigator.userAgent));
 window.addEventListener('beforeinstallprompt', event => {
   if (standalone || appleMobile) return;
   event.preventDefault();
   installPrompt = event;
-  installPanel.hidden = false;
+  installButton.hidden = false;
 });
 window.addEventListener('appinstalled', () => {
   installPrompt = null;
-  installPanel.hidden = true;
+  installButton.hidden = true;
 });
 installButton.addEventListener('click', async () => {
   if (installPrompt) {
@@ -86,7 +84,7 @@ installButton.addEventListener('click', async () => {
     try {
       await prompt.prompt();
       const choice = await prompt.userChoice;
-      if (choice.outcome === 'accepted') installPanel.hidden = true;
+      if (choice.outcome === 'accepted') installButton.hidden = true;
       return;
     } catch { /* Show manual installation steps below. */ }
   }
