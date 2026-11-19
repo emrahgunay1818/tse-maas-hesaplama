@@ -66,6 +66,7 @@ const installHint = document.getElementById('install-hint');
 const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+installButton.hidden = standalone || !(appleMobile || /Android/i.test(navigator.userAgent));
 let installPrompt;
 window.addEventListener('beforeinstallprompt', event => {
   if (standalone || appleMobile) return;
