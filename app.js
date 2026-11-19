@@ -1,22 +1,27 @@
 'use strict';
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible'];
+const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
-function restore(data){data={transportEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
+function restore(data){data={transportRate:'80',transportEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
 // Keep option 1 for saved records that used the double-ride rate.
-const transportDailyRates = new Map([['1', 160], ['2', 80]]);
+const transportMultipliers = new Map([['1', 2], ['2', 1]]);
 
 function calculateTransportNet() {
- const dailyRate = transportDailyRates.get($('transportEligible').value) ?? 0;
+ const multiplier = transportMultipliers.get($('transportEligible').value) ?? 0;
+ const dailyRate = Math.max(0, num('transportRate')) * multiplier;
  return round(Math.max(0, num('actualDays')) * dailyRate);
 }
 
 function showTransportPreview() {
- const visible = transportDailyRates.has($('transportEligible').value);
+ const rate = Math.max(0, num('transportRate'));
+ const options = $('transportEligible').options;
+ options[1].textContent = 'Tek vasıta (' + fmt(rate) + '/gün)';
+ options[2].textContent = 'Çift vasıta (' + fmt(2 * rate) + '/gün)';
+ const visible = transportMultipliers.has($('transportEligible').value);
  $('transport-preview').hidden = !visible;
  $('transport-net-preview').textContent = visible ? fmt(calculateTransportNet()) : '';
 }
@@ -63,6 +68,7 @@ $('print').onclick=()=>{
 };
 for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
 $('period').textContent=periodLabel();showSaved();
+$('transportRate').addEventListener('input', showTransportPreview);
 $('actualDays').addEventListener('input', showTransportPreview);
 $('transportEligible').addEventListener('change', showTransportPreview);
 showTransportPreview();
@@ -123,3 +129,18 @@ installButton.addEventListener('click', async () => {
     : 'Chrome menüsünü (⋮) aç. “Ana ekrana ekle” veya “Uygulamayı yükle”yi seçip onayla.';
   installHint.hidden = false;
 });
+
+$('feedback-form').addEventListener('submit', event => {
+ event.preventDefault();
+ const field = $('feedback-message');
+ const message = field.value.trim();
+ if (!message) {
+  field.setCustomValidity('Lütfen mesajını yaz.');
+  field.reportValidity();
+  return;
+ }
+ const subject = encodeURIComponent('TSE Maaş Hesaplama · Geri dönüş');
+ const body = encodeURIComponent(message.replace(/\r?\n/g, '\r\n'));
+ window.location.href = 'mailto:' + event.currentTarget.dataset.recipient + '?subject=' + subject + '&body=' + body;
+});
+$('feedback-message').addEventListener('input', event => event.currentTarget.setCustomValidity(''));
