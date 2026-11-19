@@ -66,17 +66,26 @@ const installHint = document.getElementById('install-hint');
 const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-installButton.hidden = standalone || !(appleMobile || /Android/i.test(navigator.userAgent));
+installButton.hidden = !(standalone || appleMobile || /Android/i.test(navigator.userAgent));
+
+function showInstalledStatus() {
+  installButton.hidden = false;
+  installButton.disabled = true;
+  installButton.textContent = 'Ana ekrana eklendi';
+  installHint.hidden = true;
+}
+
+if (standalone) showInstalledStatus();
 let installPrompt;
 window.addEventListener('beforeinstallprompt', event => {
-  if (standalone || appleMobile) return;
+  if (installButton.disabled || appleMobile) return;
   event.preventDefault();
   installPrompt = event;
   installButton.hidden = false;
 });
 window.addEventListener('appinstalled', () => {
   installPrompt = null;
-  installButton.hidden = true;
+  showInstalledStatus();
 });
 installButton.addEventListener('click', async () => {
   if (installPrompt) {
@@ -84,8 +93,7 @@ installButton.addEventListener('click', async () => {
     installPrompt = null;
     try {
       await prompt.prompt();
-      const choice = await prompt.userChoice;
-      if (choice.outcome === 'accepted') installButton.hidden = true;
+      await prompt.userChoice;
       return;
     } catch { /* Show manual installation steps below. */ }
   }
