@@ -1,12 +1,12 @@
 'use strict';
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible'];
+const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible','tediyeTaxRate','includeTediye'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
-function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
+function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',tediyeTaxRate:'',includeTediye:false,...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
 // Keep option 1 for saved records that used the double-ride rate.
 const transportMultipliers = new Map([['1', 2], ['2', 1]]);
 
@@ -40,7 +40,47 @@ function showMealPreview() {
  $('meal-net-preview').textContent = visible ? fmt(calculateMealNet()) : '';
 }
 
+function calculateTediye() {
+ const taxInput = $('tediyeTaxRate');
+ if (taxInput.value === '' || !taxInput.validity.valid) return null;
+
+ const gross = round(Math.max(0, num('gross')) / 30 * 13);
+ const insurance = round(gross * 0.14);
+ const unemployment = round(gross * 0.01);
+ const incomeTax = round((gross - insurance - unemployment) * num('tediyeTaxRate') / 100);
+ const stamp = round(gross * 0.00759);
+ const net = round(gross - insurance - unemployment - incomeTax - stamp);
+ return { gross, insurance, unemployment, incomeTax, stamp, net };
+}
+
+function showTediye(tediye = calculateTediye()) {
+ if (!tediye) {
+  $('tediye-breakdown').textContent = 'Tediye hesabı için geçerli bir gelir vergisi oranı girin.';
+  return;
+ }
+ const rows = [
+  ['Brüt tediye', tediye.gross],
+  ['SGK işçi primi', -tediye.insurance],
+  ['İşsizlik sigortası', -tediye.unemployment],
+  ['Gelir vergisi', -tediye.incomeTax],
+  ['Damga vergisi', -tediye.stamp],
+  ['Tahmini net tediye', tediye.net],
+ ];
+ $('tediye-breakdown').innerHTML = rows.map(([label, value]) =>
+  `<div class="line"><span>${label}</span><b>${fmt(value)}</b></div>`
+ ).join('');
+}
+
 function calculate(){
+ const tediye = calculateTediye();
+ const includeTediye = $('includeTediye').checked;
+ if (includeTediye && !tediye) {
+  $('net').textContent = '—';
+  $('status').textContent = 'Tediye bölümüne geçerli bir gelir vergisi oranı girin.';
+  $('result').hidden = true;
+  $('save').disabled = true;
+  return;
+ }
  showMealPreview();
  const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
  if(days<=0||hrs<=0||gross<0){showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
@@ -65,9 +105,15 @@ function calculate(){
  $('result').hidden = false;
  $('save').disabled = false;
  $('period').textContent=periodLabel();$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
+ const total = includeTediye ? round(net + tediye.net) : net;
+ if (includeTediye) {
+  $('net').textContent = fmt(total);
+  $('status').textContent = 'Tahmini toplam net ödeme · Tediye dâhil';
+ }
  const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['SGK prime esas tahmini kazanç',sgkBase],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['Ulaşım yardımı (net)',transportNet],['Yemek yardımı (net)',mealNet],['TAHMİNİ NET MAAŞ',net]];
+ if (includeTediye) entries.push(['Tediye (net)', tediye.net], ['AYIN TOPLAM NET ÖDEMESİ', total]);
  $('rows').innerHTML=entries.map(([name,value],i)=>`<div class="line ${i===entries.length-1?'total':''}"><span>${name}</span><b>${fmt(value)}</b></div>`).join('');
- return net;
+ return total;
 }
 function storage(){try{return JSON.parse(localStorage.getItem('tse-maas-records')||'{}')}catch{return {}}}
 function showSaved(){const data=storage();const keys=Object.keys(data).sort().reverse();$('saved').innerHTML=keys.length?'':'<p class="muted">Henüz kayıt bulunmuyor.</p>';for(const key of keys){const line=document.createElement('div');line.className='saved-item';const name=document.createElement('span');name.textContent=key+' · '+fmt(data[key].net);const load=document.createElement('button');load.type='button';load.textContent='Aç';load.onclick=()=>{try{if(!data[key]||!data[key].values)throw new Error('Kayıt bilgisi eksik');restore(data[key].values);$('status').textContent=key+' kaydı açıldı · Tahmini hesaplama';$('result').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){alert('Kayıt açılamadı: '+e.message);}};const del=document.createElement('button');del.textContent='Sil';del.className='del';del.onclick=()=>{if(confirm(key+' kaydı silinsin mi?')){const all=storage();delete all[key];localStorage.setItem('tse-maas-records',JSON.stringify(all));showSaved()}};line.append(name,load,del);$('saved').append(line)}}
@@ -77,7 +123,7 @@ $('save').onclick=()=>{const net=calculate();if(net===undefined)return;const all
 $('print').onclick=()=>{
   if($('result').hidden){alert('Önce maaşı hesaplayın.');return;}
   // Open a dedicated printable view: iOS Safari supports Share > Print / Save to Files.
-  const printable=`<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TSE Maaş Dökümü - ${periodLabel()}</title><style>body{font:15px -apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#222;max-width:780px;margin:24px auto;padding:12px}h1{color:#a51b2c;font-size:24px}h2{font-size:19px}.line{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #ddd;padding:8px 0}.line b{white-space:nowrap}.total{font-size:18px;font-weight:700;color:#a51b2c}button{background:#a51b2c;color:white;border:0;border-radius:8px;padding:12px 16px;font-size:16px;margin:10px 0}@media print{button,.help{display:none!important}body{margin:0;padding:0}.line{break-inside:avoid}}</style></head><body><h1>TSE Maaş Hesaplama</h1><p><b>Dönem:</b> ${periodLabel()}</p><h2>Tahmini net maaş: ${$('net').textContent}</h2><div>${$('rows').innerHTML}</div><p style="font-size:12px;color:#666">Tahmini hesaplama, resmî bordro değildir.</p><button onclick="window.print()">Yazdır / PDF olarak kaydet</button><p class="help">iPhone: Paylaş menüsü → Yazdır → Önizlemeyi büyüt → Paylaş → Dosyalara Kaydet.</p></body></html>`;
+  const printable=`<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TSE Maaş Dökümü - ${periodLabel()}</title><style>body{font:15px -apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#222;max-width:780px;margin:24px auto;padding:12px}h1{color:#a51b2c;font-size:24px}h2{font-size:19px}.line{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #ddd;padding:8px 0}.line b{white-space:nowrap}.total{font-size:18px;font-weight:700;color:#a51b2c}button{background:#a51b2c;color:white;border:0;border-radius:8px;padding:12px 16px;font-size:16px;margin:10px 0}@media print{button,.help{display:none!important}body{margin:0;padding:0}.line{break-inside:avoid}}</style></head><body><h1>TSE Maaş Hesaplama</h1><p><b>Dönem:</b> ${periodLabel()}</p><h2>${$('includeTediye').checked ? 'Ayın toplam net ödemesi' : 'Tahmini net maaş'}: ${$('net').textContent}</h2><div>${$('rows').innerHTML}</div><p style="font-size:12px;color:#666">Tahmini hesaplama, resmî bordro değildir.</p><button onclick="window.print()">Yazdır / PDF olarak kaydet</button><p class="help">iPhone: Paylaş menüsü → Yazdır → Önizlemeyi büyüt → Paylaş → Dosyalara Kaydet.</p></body></html>`;
   const w=window.open('','_blank');
   if(!w){window.print();return;}
   w.document.open();w.document.write(printable);w.document.close();w.focus();
@@ -91,6 +137,9 @@ showTransportPreview();
 $('actualDays').addEventListener('input', showMealPreview);
 $('mealEligible').addEventListener('change', showMealPreview);
 showMealPreview();
+$('gross').addEventListener('input', () => showTediye());
+$('tediyeTaxRate').addEventListener('input', () => showTediye());
+showTediye();
 
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 
