@@ -1,12 +1,12 @@
 'use strict';
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate'];
+const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
-function restore(data){data={transportRate:'80',transportEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
+function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
 // Keep option 1 for saved records that used the double-ride rate.
 const transportMultipliers = new Map([['1', 2], ['2', 1]]);
 
@@ -26,7 +26,22 @@ function showTransportPreview() {
  $('transport-net-preview').textContent = visible ? fmt(calculateTransportNet()) : '';
 }
 
+const mealDailyNet = 330;
+
+function calculateMealNet() {
+ return $('mealEligible').value === '1'
+  ? round(Math.max(0, num('actualDays')) * mealDailyNet)
+  : 0;
+}
+
+function showMealPreview() {
+ const visible = $('mealEligible').value === '1';
+ $('meal-preview').hidden = !visible;
+ $('meal-net-preview').textContent = visible ? fmt(calculateMealNet()) : '';
+}
+
 function calculate(){
+ showMealPreview();
  const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
  if(days<=0||hrs<=0||gross<0){showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
  const day=gross/days;
@@ -44,12 +59,13 @@ function calculate(){
  const stamp=round(Math.max(0,employeeGross-num('minimum'))*.00759);
  const deductions=round(insurance+gss+unemployment+union+incomeTax+stamp+num('otherDeduction'));
  const transportNet = calculateTransportNet();
- const net = round(employeeGross - deductions + transportNet);
+ const mealNet = calculateMealNet();
+ const net = round(employeeGross - deductions + transportNet + mealNet);
  showTransportPreview();
  $('result').hidden = false;
  $('save').disabled = false;
  $('period').textContent=periodLabel();$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
- const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['SGK prime esas tahmini kazanç',sgkBase],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['Ulaşım yardımı (net)',transportNet],['TAHMİNİ NET MAAŞ',net]];
+ const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['SGK prime esas tahmini kazanç',sgkBase],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['Ulaşım yardımı (net)',transportNet],['Yemek yardımı (net)',mealNet],['TAHMİNİ NET MAAŞ',net]];
  $('rows').innerHTML=entries.map(([name,value],i)=>`<div class="line ${i===entries.length-1?'total':''}"><span>${name}</span><b>${fmt(value)}</b></div>`).join('');
  return net;
 }
@@ -72,6 +88,9 @@ $('transportRate').addEventListener('input', showTransportPreview);
 $('actualDays').addEventListener('input', showTransportPreview);
 $('transportEligible').addEventListener('change', showTransportPreview);
 showTransportPreview();
+$('actualDays').addEventListener('input', showMealPreview);
+$('mealEligible').addEventListener('change', showMealPreview);
+showMealPreview();
 
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 
