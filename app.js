@@ -30,7 +30,7 @@ function showTransportPreview() {
  $('transport-net-preview').textContent = visible ? fmt(calculateTransportNet()) : '';
 }
 
-const mealDailyNet = 330;
+const mealDailyNet = 325.82;
 
 function calculateMealNet() {
  return $('mealEligible').value === '1'
