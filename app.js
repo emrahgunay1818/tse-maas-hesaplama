@@ -1,6 +1,6 @@
 'use strict';
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const ids=['month','year','gross','raiseRate','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible'];
+const ids=['month','year','gross','raiseRate','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible','mealRate'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
@@ -10,7 +10,7 @@ function syncPremiumDays() {
  $('premiumDays').value = $('actualDays').value;
 }
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
-function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',raiseRate:'0',...data};if(data.premiumDays===undefined)data.premiumDays=data.actualDays??'0';if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
+function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',mealRate:$('mealRate').defaultValue,raiseRate:'0',...data};if(data.premiumDays===undefined)data.premiumDays=data.actualDays??'0';if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
 // Keep option 1 for saved records that used the double-ride rate.
 const transportMultipliers = new Map([['1', 2], ['2', 1]]);
 
@@ -30,11 +30,10 @@ function showTransportPreview() {
  $('transport-net-preview').textContent = visible ? fmt(calculateTransportNet()) : '';
 }
 
-const mealDailyNet = 325.82;
 
 function calculateMealNet() {
  return $('mealEligible').value === '1'
-  ? round(Math.max(0, num('actualDays')) * mealDailyNet)
+  ? round(Math.max(0, num('actualDays')) * Math.max(0, num('mealRate')))
   : 0;
 }
 
@@ -108,6 +107,7 @@ $('actualDays').addEventListener('input', showTransportPreview);
 $('transportEligible').addEventListener('change', showTransportPreview);
 showTransportPreview();
 $('actualDays').addEventListener('input', showMealPreview);
+$('mealRate').addEventListener('input', showMealPreview);
 $('mealEligible').addEventListener('change', showMealPreview);
 showMealPreview();
 $('gross').addEventListener('input', () => showRaisedGross());
