@@ -1,12 +1,16 @@
 'use strict';
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const ids=['month','year','gross','payDays','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible'];
+const ids=['month','year','gross','raiseRate','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
+const payDays = 30;
+function syncPremiumDays() {
+ $('premiumDays').value = $('actualDays').value;
+}
 function snapshot(){return Object.fromEntries(ids.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]));}
-function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',...data};if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
+function restore(data){data={transportRate:'80',transportEligible:'0',mealEligible:'0',raiseRate:'0',...data};if(data.premiumDays===undefined)data.premiumDays=data.actualDays??'0';if(data.service!==undefined && data.serviceYears===undefined){data={...data,serviceYears:String(round(Number(data.service)/26.16)),serviceUnit:'26.16'};}for(const id of ids)if(data[id]!==undefined){if($(id).type==='checkbox')$(id).checked=data[id]===true||data[id]==='true';else $(id).value=data[id];}calculate();}
 // Keep option 1 for saved records that used the double-ride rate.
 const transportMultipliers = new Map([['1', 2], ['2', 1]]);
 
@@ -40,11 +44,22 @@ function showMealPreview() {
  $('meal-net-preview').textContent = visible ? fmt(calculateMealNet()) : '';
 }
 
+function grossWithRaise() {
+ const base = num('gross');
+ const rate = num('raiseRate');
+ return base >= 0 && rate >= 0 ? round(base * (1 + rate / 100)) : NaN;
+}
+
+function showRaisedGross(gross = grossWithRaise()) {
+ $('raisedGross').value = Number.isFinite(gross) ? fmt(gross) : '—';
+}
+
 function calculate(){
  showMealPreview();
- const gross=num('gross'),days=num('payDays'),hrs=num('hoursPerDay');
- if(days<=0||hrs<=0||gross<0){showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Ücret günü ve günlük çalışma saati sıfırdan büyük olmalı';return;}
- const day=gross/days;
+ const gross=grossWithRaise(),hrs=num('hoursPerDay');
+ showRaisedGross(gross);
+ if(hrs<=0||!Number.isFinite(gross)){showTransportPreview();$('result').hidden=true;$('save').disabled=true;$('net').textContent='Hatalı giriş';$('status').textContent='Günlük çalışma saati pozitif, brüt ücret ve zam oranı sıfır veya daha fazla olmalı';return;}
+ const day=gross/payDays;
  const overtime=round(num('overtime')*day*num('overtimeFactor'));
  const holiday=round(num('holiday')*day*num('holidayFactor'));
  const night=round(num('night')*day/hrs*num('nightRate')/100);
@@ -65,7 +80,10 @@ function calculate(){
  $('result').hidden = false;
  $('save').disabled = false;
  $('period').textContent=periodLabel();$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
- const entries=[['Temel brüt ücret',gross],['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['SGK prime esas tahmini kazanç',sgkBase],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['Ulaşım yardımı (net)',transportNet],['Yemek yardımı (net)',mealNet],['TAHMİNİ NET MAAŞ',net]];
+ const grossEntries = num('raiseRate') > 0
+  ? [['Temel brüt ücret',num('gross')],['Brüt zam tutarı',round(gross-num('gross'))],['Zamlı brüt ücret',gross]]
+  : [['Temel brüt ücret',gross]];
+ const entries=[...grossEntries,['Normal mesai (brüt)',overtime],['Bayram mesaisi (brüt)',holiday],['Toplam mesai (brüt)',mesai],['Gece çalışma zammı',night],['İş primi',premium],['Giyim yardımı',num('clothing')],['Sosyal yardım',num('social')],['Hizmet zammı ('+num('serviceYears')+' yıl)',service],['Diğer brüt',num('otherGross')],['Çalışan brüt kazanç',employeeGross],['SGK prime esas tahmini kazanç',sgkBase],['İşçi sigorta primi',-insurance],['GSS işçi primi',-gss],['İşsizlik sigortası',-unemployment],['Sendika aidatı',-union],['Vergiye esas ücret',taxBase],['Gelir vergisi',-incomeTax],['Damga vergisi',-stamp],['Diğer kesinti',-num('otherDeduction')],['Kesintiler toplamı',-deductions],['Ulaşım yardımı (net)',transportNet],['Yemek yardımı (net)',mealNet],['NET MAAŞ',net]];
  $('rows').innerHTML=entries.map(([name,value],i)=>`<div class="line ${i===entries.length-1?'total':''}"><span>${name}</span><b>${fmt(value)}</b></div>`).join('');
  return net;
 }
@@ -77,7 +95,7 @@ $('save').onclick=()=>{const net=calculate();if(net===undefined)return;const all
 $('print').onclick=()=>{
   if($('result').hidden){alert('Önce maaşı hesaplayın.');return;}
   // Open a dedicated printable view: iOS Safari supports Share > Print / Save to Files.
-  const printable=`<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TSE Maaş Dökümü - ${periodLabel()}</title><style>body{font:15px -apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#222;max-width:780px;margin:24px auto;padding:12px}h1{color:#a51b2c;font-size:24px}h2{font-size:19px}.line{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #ddd;padding:8px 0}.line b{white-space:nowrap}.total{font-size:18px;font-weight:700;color:#a51b2c}button{background:#a51b2c;color:white;border:0;border-radius:8px;padding:12px 16px;font-size:16px;margin:10px 0}@media print{button,.help{display:none!important}body{margin:0;padding:0}.line{break-inside:avoid}}</style></head><body><h1>TSE Maaş Hesaplama</h1><p><b>Dönem:</b> ${periodLabel()}</p><h2>Tahmini net maaş: ${$('net').textContent}</h2><div>${$('rows').innerHTML}</div><p style="font-size:12px;color:#666">Tahmini hesaplama, resmî bordro değildir.</p><button onclick="window.print()">Yazdır / PDF olarak kaydet</button><p class="help">iPhone: Paylaş menüsü → Yazdır → Önizlemeyi büyüt → Paylaş → Dosyalara Kaydet.</p></body></html>`;
+  const printable=`<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TSE Maaş Dökümü - ${periodLabel()}</title><style>body{font:15px -apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#222;max-width:780px;margin:24px auto;padding:12px}h1{color:#a51b2c;font-size:24px}h2{font-size:19px}.line{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #ddd;padding:8px 0}.line b{white-space:nowrap}.total{font-size:18px;font-weight:700;color:#a51b2c}button{background:#a51b2c;color:white;border:0;border-radius:8px;padding:12px 16px;font-size:16px;margin:10px 0}@media print{button,.help{display:none!important}body{margin:0;padding:0}.line{break-inside:avoid}}</style></head><body><h1>TSE Maaş Hesaplama</h1><p><b>Dönem:</b> ${periodLabel()}</p><h2>Net maaş: ${$('net').textContent}</h2><div>${$('rows').innerHTML}</div><p style="font-size:12px;color:#666">Tahmini hesaplama, resmî bordro değildir.</p><button onclick="window.print()">Yazdır / PDF olarak kaydet</button><p class="help">iPhone: Paylaş menüsü → Yazdır → Önizlemeyi büyüt → Paylaş → Dosyalara Kaydet.</p></body></html>`;
   const w=window.open('','_blank');
   if(!w){window.print();return;}
   w.document.open();w.document.write(printable);w.document.close();w.focus();
@@ -85,12 +103,16 @@ $('print').onclick=()=>{
 for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
 $('period').textContent=periodLabel();showSaved();
 $('transportRate').addEventListener('input', showTransportPreview);
+$('actualDays').addEventListener('input', syncPremiumDays);
 $('actualDays').addEventListener('input', showTransportPreview);
 $('transportEligible').addEventListener('change', showTransportPreview);
 showTransportPreview();
 $('actualDays').addEventListener('input', showMealPreview);
 $('mealEligible').addEventListener('change', showMealPreview);
 showMealPreview();
+$('gross').addEventListener('input', () => showRaisedGross());
+$('raiseRate').addEventListener('input', () => showRaisedGross());
+showRaisedGross();
 
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 
