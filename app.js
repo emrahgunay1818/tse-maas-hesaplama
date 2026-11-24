@@ -2,6 +2,12 @@
 const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const ids=['month','year','gross','raiseRate','actualDays','premiumDays','overtime','holiday','night','leave','taxRate','taxCredit','minimum','privateInsurance','disability','premiumRate','overtimeFactor','holidayFactor','nightRate','hoursPerDay','unionFactor','clothing','social','serviceYears','serviceUnit','otherGross','otherDeduction','transportEligible','transportRate','mealEligible','mealRate'];
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n),round=n=>Math.round((n+Number.EPSILON)*100)/100;
+const netAmountFormat = new Intl.NumberFormat('tr-TR', {
+ minimumFractionDigits: 2,
+ maximumFractionDigits: 2,
+});
+const formatNet = amount => netAmountFormat.format(amount) + '₺';
+
 $('month').innerHTML=months.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('');
 $('year').value=new Date().getFullYear();
 const num=id=>Number($(id).value)||0;
@@ -78,7 +84,7 @@ function calculate(){
  showTransportPreview();
  $('result').hidden = false;
  $('save').disabled = false;
- $('period').textContent=periodLabel();$('net').textContent=fmt(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
+ $('period').textContent=periodLabel();$('net').textContent=formatNet(net);$('status').textContent='Tahmini hesaplama · Kesin bordro değildir';
  const grossEntries = num('raiseRate') > 0
   ? [['Temel brüt ücret',num('gross')],['Brüt zam tutarı',round(gross-num('gross'))],['Zamlı brüt ücret',gross]]
   : [['Temel brüt ücret',gross]];
@@ -99,7 +105,7 @@ $('print').onclick=()=>{
   if(!w){window.print();return;}
   w.document.open();w.document.write(printable);w.document.close();w.focus();
 };
-for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent='—'; $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
+for(const id of ids)$(id).addEventListener('change',()=>{$('net').textContent=formatNet(0); $('status').textContent='Değerler değişti. Yeniden hesaplamak için butona basın'; $('result').hidden=true; $('save').disabled=true; $('period').textContent=periodLabel(); });
 $('period').textContent=periodLabel();showSaved();
 $('transportRate').addEventListener('input', showTransportPreview);
 $('actualDays').addEventListener('input', syncPremiumDays);
